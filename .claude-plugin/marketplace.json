@@ -1,0 +1,15 @@
+{
+  "name": "spec-plan",
+  "description": "Spec-plan change-request workflow for Claude Code.",
+  "owner": {
+    "name": "Danilo Prates",
+    "email": "daniloprates@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "sp",
+      "source": "./",
+      "description": "Spec-plan change-request workflow: /sp:create, /sp:build, /sp:implement, /sp:archive."
+    }
+  ]
+}
