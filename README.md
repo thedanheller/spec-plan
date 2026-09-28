@@ -20,25 +20,25 @@ skills/
   build/SKILL.md     # /sp:build
   implement/SKILL.md # /sp:implement
   archive/SKILL.md   # /sp:archive
+install.sh           # installs into ~/.claude or the current directory
 ```
+
+## Installation
+
+`install.sh` registers this repo as the `spec-plan` marketplace and enables `sp@spec-plan`. The plugin loads in place from the repo, so edits to `skills/` take effect at the next session start or `/reload-plugins`. Re-running the script is safe.
+
+```sh
+~/dev/spec-plan/install.sh --global               # ~/.claude/settings.json — every project
+~/dev/spec-plan/install.sh --local                # ./.claude/settings.local.json — current directory only
+~/dev/spec-plan/install.sh --local ~/dev/my-app   # .claude/settings.local.json in the given directory
+```
+
+Add `--uninstall` to any of these to remove the plugin and marketplace from that scope.
 
 ## Development
 
-Load the plugin straight from the working copy for a session:
+Load the plugin from the working copy for a single session, with nothing installed:
 
 ```sh
 claude --plugin-dir ~/dev/spec-plan
 ```
-
-Edits to `skills/*/SKILL.md` take effect in the next session started this way.
-
-## Installation
-
-From inside Claude Code:
-
-```
-/plugin marketplace add ~/dev/spec-plan
-/plugin install sp@spec-plan
-```
-
-After pushing the repo to GitHub, replace the local path with `<owner>/spec-plan`. Pull new versions with `/plugin marketplace update spec-plan`.

@@ -11,4 +11,4 @@ This repo is the source of the `sp` Claude Code plugin. Each skill under `skills
 
 ## Testing a change
 
-Run `claude --plugin-dir .` in a scratch repo and exercise the full flow: `/sp:create` → `/sp:build` → `/sp:implement` → `/sp:archive`.
+Run `claude --plugin-dir <path-to-this-repo>` from a scratch repo, or `./install.sh --local <scratch-repo>`, and exercise the full flow: `/sp:create` → `/sp:build` → `/sp:implement` → `/sp:archive`.
