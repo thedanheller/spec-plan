@@ -17,6 +17,6 @@ Deterministic scaffolding step (step 1) for the change-request workflow. No judg
 
 3. **Create the folder**: `change-requests/<YYYY-MM-DD>_<slug>/` at the repo root, using today's date. Create `change-requests/` itself if it doesn't exist.
 
-4. **Write `product-briefing.md`** in that folder containing exactly the user's original name/description as given — no template, no added headings, no rewriting. This file is the user's own input; the `sp:build` skill is what turns it into something structured.
+4. **Write `product-briefing.md`** in that folder containing the user's original name/description as given, with `# ` prepended to the title (the first line) so it renders as a top-level heading. The rest of the text stays exactly as written — no template, no other headings, no rewriting. This file is the user's own input; the `sp:build` skill is what turns it into something structured.
 
 5. Report the folder path created. Don't do anything else — no clarifying questions, no drafting a build plan.
