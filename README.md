@@ -32,10 +32,10 @@ Every task in a Build Plan ends with acceptance scenarios, one per line, as `WHE
 
 `/sp:verify` checks an implemented plan in two layers and writes `verify.md` (or `verify-<phase>.md`) into the change request folder. It is read-only: fixes go back through `/sp:implement`.
 
-1. **Coverage** — deterministic. It runs the project's test command (asking when the repo doesn't make it clear) and matches every scenario to the tests whose name contains it, ignoring case, punctuation, underscores and camelCase. Unmatched scenarios are listed, never dropped.
+1. **Coverage** — deterministic. It runs the project's test command (asking when the repo doesn't make it clear) and matches every scenario to the tests whose name contains it, ignoring case, punctuation, underscores and camelCase. Every non-pending scenario needs a matched test that ran and passed; a skipped test doesn't count. Unmatched scenarios and scenario lines without a `WHEN` condition and a `THEN` outcome are listed, never dropped.
 2. **Behavior review** — an independent reviewer reads the plan, the cited rules sections, the Clarifications, `## Validation` and the diff of the build, and answers for each scenario whether it is implemented and whether its test actually proves it, then lists anything built beyond the plan. `/sp:verify` checks each finding against the code before reporting it and lists the ones it dropped.
 
-The diff covers exactly one build: `/sp:implement` records the working tree under a local ref, `refs/sp/<folder>/<phase>` or `refs/sp/<folder>/build`, before its first task, and `/sp:verify` diffs the current working tree against it. Uncommitted work, branch commits and a phase built on an earlier phase all diff correctly.
+The diff covers exactly one build: `/sp:implement` records the working tree under a local ref, `refs/sp/<folder>/<phase>` or `refs/sp/<folder>/build`, before its first task, and `/sp:verify` diffs the current working tree against it. Uncommitted work, branch commits and a phase built on an earlier phase all diff correctly. Changes inside a submodule or other nested repository are included once they are committed there; while one has uncommitted changes, both commands stop and say so rather than snapshot it incompletely.
 
 ```markdown
 | Rule | Scenario | Covered by test | Test passes | Reviewer | Note |
@@ -153,6 +153,8 @@ skills/
   verify/SKILL.md    # /sp:verify
   verify/match_scenarios.py  # deterministic scenario-to-test matching for /sp:verify
   archive/SKILL.md   # /sp:archive
+scripts/
+  snapshot.sh        # working-tree snapshots behind the base refs, used by /sp:implement and /sp:verify
 install.sh           # installs into ~/.claude or the current directory
 ```
 

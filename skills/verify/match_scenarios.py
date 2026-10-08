@@ -11,7 +11,9 @@ A scenario is a bullet under a task's "Scenarios:" line:
 
     - [REF] WHEN <condition>, THEN <outcome> (pending: <item>)
 
-where the [REF] prefix and the pending suffix are optional. A test matches a
+where the [REF] prefix and the pending suffix are optional, and the condition
+and the outcome must both be present. A bullet that doesn't fit is reported
+as malformed. A test matches a
 scenario when its full name contains the scenario text (WHEN to the end of the
 outcome) and, when present, the rule reference. Both sides are compared after
 the same normalization, so formatting differences don't matter: letter case,
@@ -35,7 +37,7 @@ SCENARIOS_HEADER = re.compile(r"^\s*(?:[-*+]\s+)?\**Scenarios:?\**:?\s*$", re.IG
 TASK = re.compile(r"^(?P<num>\d+)[.)]\s")
 SCENARIO = re.compile(
     r"^(?:\[(?P<ref>[^\]]+)\]\s*)?"
-    r"(?P<text>WHEN\b.*?)"
+    r"(?P<text>WHEN\b(?P<condition>.*?)\bTHEN\b(?P<outcome>.*?))"
     r"(?:\s*\(\s*pending:\s*(?P<pending>.*)\))?\s*$",
     re.IGNORECASE,
 )
@@ -102,7 +104,9 @@ def parse_plan(path):
                 continue
             body = b.group("body").replace("**", "").replace("`", "").strip()
             s = SCENARIO.match(body)
-            if not s:
+            # Both clauses need words: "WHEN" alone, or a WHEN with no THEN
+            # outcome, would match unrelated tests by containment.
+            if not s or not squash(s.group("condition")) or not squash(s.group("outcome")):
                 malformed.append({"line": lineno, "task": task, "text": body})
                 continue
             scenarios.append({
@@ -192,19 +196,19 @@ def match(scenarios, tests, scan):
         for t, sq, tk, _ in prepared:
             if needle and needle in sq and (not s["ref"] or contains_ref(tk, s["ref"])):
                 matches.append({"name": t["name"], "status": t["status"]})
+        # "yes" needs a matched test that ran and passed; a skipped test
+        # proves nothing, and a run where every match was skipped is "skipped".
         statuses = {m["status"] for m in matches}
         if not matches:
             passes = None
         elif "FAIL" in statuses:
             passes = "no"
-        elif statuses == {"PASS"}:
+        elif "PASS" in statuses:
             passes = "yes"
-        elif statuses <= {"SKIP"}:
+        elif statuses == {"SKIP"}:
             passes = "skipped"
-        elif "UNKNOWN" in statuses:
-            passes = "unknown"
         else:
-            passes = "partly skipped"
+            passes = "unknown"
         r = dict(s)
         r["coverage"] = "pending" if s["pending"] else ("covered" if matches else "uncovered")
         r["passes"] = passes

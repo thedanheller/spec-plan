@@ -29,21 +29,16 @@ verifier: claude   # claude (default) | codex | kimi
 
 2. **Read the inputs in full:** the plan file, `product-briefing.md` (its `## Clarifications` and `## Validation` sections in particular; a briefing without `## Validation` is normal and not worth reporting), and every rules doc section the plan cites, through `Rules:` lines or scenario references. Collect the cited sections — under their own headings, verbatim — into `rules.md` in a temporary directory (`tmp="$(mktemp -d)"`), which also holds the reviewer's other inputs below.
 
-3. **Get the diff of this build.** `sp:implement` records the working tree as it was before the build under `refs/sp/<folder>/<phase>` (phased) or `refs/sp/<folder>/build` (single build). Snapshot the working tree as it is now, the same way, and diff the two, leaving out the change request docs. From the repo root:
+3. **Get the diff of this build.** `sp:implement` records the working tree as it was before the build under `refs/sp/<folder>/<phase>` (phased) or `refs/sp/<folder>/build` (single build). Snapshot the working tree as it is now with the same script, `scripts/snapshot.sh` from the plugin root (two levels above this skill's base directory), and diff the two, leaving out the change request docs. From the repo root:
 
    ```sh
-   snapshot() {
-     idx="$(mktemp -d)/index"
-     cp "$(git rev-parse --git-path index)" "$idx" 2>/dev/null || true
-     GIT_INDEX_FILE="$idx" git add -A
-     GIT_INDEX_FILE="$idx" git write-tree
-   }
-   base="refs/sp/2026-10-05_dis-42-session-close/back"
-   now="$(snapshot)"
-   git diff "$base" "$now" -- . ':(exclude)change-requests' > "$tmp/diff.patch"
+   now="$(sh <plugin-root>/scripts/snapshot.sh)"
+   git diff --submodule=diff refs/sp/2026-10-05_dis-42-session-close/back "$now" -- . ':(exclude)change-requests' > "$tmp/diff.patch"
    ```
 
-   This covers uncommitted work, work committed on a branch, and a phase built on top of an earlier one: each phase's base already contains the earlier phases' work, so the diff holds this phase only.
+   This covers uncommitted work, work committed on a branch, and a phase built on top of an earlier one: each phase's base already contains the earlier phases' work, so the diff holds this phase only. Changes committed inside a submodule show up in full through `--submodule=diff`.
+
+   When the script exits non-zero, stop and show the user its message; never diff against a partial snapshot. It refuses when a submodule or other nested repository has uncommitted changes, which the snapshot can't capture: the user commits or stashes them inside that repository and runs `/sp:verify` again.
 
    When the ref doesn't exist (a plan implemented before `sp:implement` recorded bases), fall back, and say in the report which base was used:
    - On a branch other than the default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`, else `main` or `master`), the base is `git merge-base HEAD <default>`. For a phased plan, warn that the diff may include earlier phases' work.
@@ -66,11 +61,11 @@ verifier: claude   # claude (default) | codex | kimi
       ```
 
       The script reads the `Scenarios:` bullets of the plan and matches each to the tests whose full name contains its rule reference (when present) and its scenario text. Both sides are normalized the same way first: letter case, accents, punctuation, underscores, camelCase and spacing don't matter, so `[ORD-04] WHEN the cart subtotal is 99.99, THEN …`, `test_ord_04_when_the_cart_subtotal_is_99_99_then_…` and `ord04WhenTheCartSubtotalIs9999Then…` all match. For each scenario it reports `covered`, `uncovered` or `pending`, the matching tests with their status, and, for an uncovered scenario, the closest test name as a hint. A hint is never a match. Bullets in a `Scenarios:` block that don't parse as a scenario come back as `malformed`.
-   4. **Take its output as is.** Don't reinterpret a match or promote a hint to a match. When `python3` isn't available, apply the same rules by hand and say so in the report. A scan gives coverage only: per-scenario "passes" then follows the test command's exit code, and the report says so.
+   4. **Take its output as is.** Don't reinterpret a match or promote a hint to a match. When `python3` isn't available, apply the same rules by hand and say so in the report. The script's "passes" is `yes` only when at least one matched test ran and passed; `skipped` means every matched test was skipped, which proves nothing. A scan gives coverage only: per-scenario "passes" then follows the test command's exit code, the report says so, and the status can be at best `pass with notes`.
 
    A plan with no `Scenarios:` blocks (written before `sp:build` produced them) has no layer 1: say so, and run layer 2 against the tasks' "done" criteria.
 
-5. **Layer 2 — behavior review**, by an independent reviewer that hasn't seen the implementation conversation. Put its inputs in `$tmp`: `rules.md`, `diff.patch` and `coverage.json`. Snapshot the working tree (`snapshot`) right before the review.
+5. **Layer 2 — behavior review**, by an independent reviewer that hasn't seen the implementation conversation. Put its inputs in `$tmp`: `rules.md`, `diff.patch` and `coverage.json`. Snapshot the working tree (`sh <plugin-root>/scripts/snapshot.sh`) right before the review.
 
    The reviewer prompt, with paths filled in:
 
@@ -127,7 +122,7 @@ verifier: claude   # claude (default) | codex | kimi
 
    When the configured CLI isn't installed, say so and stop; don't switch reviewers on your own.
 
-   After the review, snapshot the working tree again. When it differs from the snapshot taken before the review, the reviewer changed files: name them in the report and to the user, and leave them as they are.
+   After the review, snapshot the working tree again. When it differs from the snapshot taken before the review (`git diff --stat <before> <after>` names the files), or the script now fails on a nested repository with uncommitted changes, the reviewer changed files: name them in the report and to the user, and leave them as they are.
 
 6. **Check every finding against the code.** A reviewer reports what it believes, not necessarily what is true. For each `partial`, `no`, `weak` and `not proven` answer, and each scope creep item, open the cited code and confirm it:
    - Confirmed — keep it.
@@ -163,8 +158,8 @@ verifier: claude   # claude (default) | codex | kimi
    - Reviewer is the worst confirmed answer for the scenario: `not implemented`, `partial`, `not proven`, `weak test`, or `ok`.
    - **Scope creep** lists the confirmed items; **Pending scenarios** lists each with the open item it waits on; **Dropped reviewer findings** lists what step 6 dropped or corrected, and why. Write `None.` under an empty section.
    - **Status:**
-     - `fail` — the test command fails, or a non-pending scenario is uncovered, unparsed or has a failing test, or a confirmed `not implemented`, `partial` or `not proven`.
-     - `pass with notes` — no failure, but a confirmed `weak test`, confirmed scope creep, pending scenarios, a fallback base, or a reviewer that changed files.
+     - `fail` — the test command fails; or a non-pending scenario is uncovered or unparsed, or its "Test passes" is anything but `yes` (`no`, `skipped`, `unknown`): every non-pending scenario needs a matched test that ran and passed; or a confirmed `not implemented`, `partial` or `not proven`.
+     - `pass with notes` — no failure, but a confirmed `weak test`, confirmed scope creep, pending scenarios, a fallback base, coverage from a static scan, or a reviewer that changed files.
      - `pass` — none of the above.
 
 8. **Report a summary** to the user: the status, the counts (scenarios covered, failing, pending), the issues that drive the status, the dropped findings, and the report path. When the status isn't `pass`, point to `/sp:implement` for the fixes. Don't commit or push.

@@ -25,25 +25,15 @@ Implements a Build Plan written by the `sp:build` skill. This is step 4 of the c
 
    When the repo has no test setup at all, ask the user which framework to use before dispatching.
 
-4. **Record the base snapshot.** Before dispatching the first task, record the state of the working tree so that `sp:verify` can diff exactly this build later. The ref is `refs/sp/<folder>/<phase>` for a phased build and `refs/sp/<folder>/build` for a single build, where `<folder>` is the change request folder name. Record it only when the ref doesn't exist yet, so a re-run of this skill to fix findings keeps the original base. From the repo root:
+4. **Record the base snapshot.** Before dispatching the first task, record the state of the working tree so that `sp:verify` can diff exactly this build later. The ref is `refs/sp/<folder>/<phase>` for a phased build and `refs/sp/<folder>/build` for a single build, where `<folder>` is the change request folder name. Use `scripts/snapshot.sh` from the plugin root, two levels above this skill's base directory:
 
    ```sh
-   ref="refs/sp/2026-10-05_dis-42-session-close/back"
-   if ! git rev-parse -q --verify "$ref" >/dev/null; then
-     idx="$(mktemp -d)/index"
-     cp "$(git rev-parse --git-path index)" "$idx" 2>/dev/null || true
-     GIT_INDEX_FILE="$idx" git add -A
-     tree="$(GIT_INDEX_FILE="$idx" git write-tree)"
-     if parent="$(git rev-parse -q --verify HEAD)"; then
-       commit="$(git -c user.name=sp -c user.email=sp@localhost commit-tree "$tree" -p "$parent" -m "sp base: $ref")"
-     else
-       commit="$(git -c user.name=sp -c user.email=sp@localhost commit-tree "$tree" -m "sp base: $ref")"
-     fi
-     git update-ref "$ref" "$commit"
-   fi
+   sh <plugin-root>/scripts/snapshot.sh refs/sp/2026-10-05_dis-42-session-close/back
    ```
 
-   The temporary index captures staged, unstaged and untracked files (honoring `.gitignore`) and leaves the real index, the branch and the files untouched. The ref is local and a normal push doesn't send it. Skip this step when the project isn't a git repo.
+   The script records the ref only when it doesn't exist yet, so a re-run of this skill to fix findings keeps the original base. It snapshots through a temporary index, capturing staged, unstaged and untracked files (honoring `.gitignore`) and leaving the real index, the branch and the files untouched. The ref is local and a normal push doesn't send it.
+
+   When the script exits non-zero, no ref is written: stop before dispatching and show the user its message. It refuses to snapshot when a submodule or other nested repository has uncommitted changes, because those would be missing from the snapshot; the user commits or stashes them inside that repository and runs `/sp:implement` again. Skip this step when the project isn't a git repo.
 
 5. **Route each task:**
    - **Low ambiguity → Sonnet subagent.** `Agent({ subagent_type: "general-purpose", model: "sonnet", prompt: <task, with enough file/context detail to act without re-deriving intent> })`.
