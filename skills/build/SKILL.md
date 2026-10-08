@@ -67,6 +67,7 @@ A project with no config file runs a single build with every question asked to t
    - Integration points with existing systems
    - Non-functional constraints (performance, rollout, feature-flagging)
    - Anything the briefing states as a goal without saying how
+   - Concrete values the task scenarios need (step 7): thresholds, limits, messages, status codes, what the user sees
 
    For each question, check the rules docs first. A question the rules docs answer is settled by them. Ask the user the remaining questions, batched (use `AskUserQuestion` for concrete choices with clear options; plain text for open-ended ones).
 
@@ -96,7 +97,7 @@ A project with no config file runs a single build with every question asked to t
    - **Summary** — one paragraph, what's being built and why, in your own words (not a copy of the briefing). In a phased build, what this phase delivers.
    - **Approach** — the technical direction taken and the key decisions behind it, stated as final (see writing style below).
    - **Changes** — concrete list of what changes, by area/file/module.
-   - **Tasks** — numbered, independently implementable units of work. This list is what `sp:implement` will dispatch, so make each task self-contained: what changes, where, and what "done" looks like. For each task, note its ambiguity level in one line — e.g. "low ambiguity: mechanical rename across N files" vs "high ambiguity: needs to decide the caching invalidation strategy" — so `sp:implement` can route it without re-deriving that judgment. When a task implements behavior defined in a rules doc, cite it in one line: `Rules: docs/rules/sessions.md#idle-timeout`.
+   - **Tasks** — numbered, independently implementable units of work. This list is what `sp:implement` will dispatch, so make each task self-contained: what changes, where, and what "done" looks like. For each task, note its ambiguity level in one line — e.g. "low ambiguity: mechanical rename across N files" vs "high ambiguity: needs to decide the caching invalidation strategy" — so `sp:implement` can route it without re-deriving that judgment. When a task implements behavior defined in a rules doc, cite it in one line: `Rules: docs/rules/sessions.md#idle-timeout`. Each task ends with a `Scenarios:` block (see step 7).
    - **Open risks** — anything that could still go sideways.
    - **Rules to update** — present only when `rules_docs` is configured and this build produced `[rule]` answers. One entry per rule: the target doc, the section, and the proposed text. The entries are proposals for the author to take to stakeholders.
 
@@ -106,6 +107,25 @@ A project with no config file runs a single build with every question asked to t
      - **docs/rules/sessions.md#logout** — "Logout closes every active session of the user, on all devices."
      ```
 
-7. **Writing style**: the plan file is a decision document, not a transcript of the conversation. Write in the affirmative, final point of view — the chosen approach is simply the approach, not "instead of X we chose Y." No meta-commentary about the back-and-forth that produced it, no residue from discarded alternatives unless a risk section needs to name a real tradeoff still in play. (The `## Clarifications` section in `product-briefing.md` is the one place the raw Q&A belongs — leave it as a record, not prose to rewrite.)
+7. **Scenarios.** Every task gets a `Scenarios:` block: the acceptance scenarios that say what "done" looks like from the outside. `sp:implement` turns each one into an automated test and `sp:verify` checks that test against it, so write them with care.
 
-8. When the plan file is written, tell the user where it is and stop — don't start implementing. That's a separate, explicit step (`sp:implement`).
+   ```markdown
+   2. Apply the threshold discount in the checkout totals service. Done when order totals reflect the discount rule.
+      Low ambiguity: threshold, rate and rounding are specified.
+      Rules: docs/rules/orders.md#discounts
+      Scenarios:
+      - [ORD-04] WHEN the cart subtotal is 120.00 and the discount threshold is 100.00, THEN the order total is 108.00
+      - [ORD-04] WHEN the cart subtotal is 99.99, THEN the order total is 99.99 and no discount line is shown
+      - [ORD-05] WHEN a coupon and the threshold discount both apply, THEN the order total follows the stacking rule (pending: ORD-05 stacking discounts)
+   ```
+
+   - **Format.** One bullet per scenario, on a single line: `- WHEN <condition>, THEN <observable outcome>`. A task has as many scenarios as it has distinct behaviors, edge cases and error states.
+   - **Rule reference.** When the task cites a rules doc, prefix each scenario with the reference of the rule it derives from, in brackets: the identifier the rules doc itself uses for that rule (`[ORD-04]`), or, when the doc has no such identifiers, the anchor exactly as the `Rules:` line cites it (`[docs/rules/orders.md#discounts]`). A scenario that derives from a `[rule]` answer, which the rules docs don't hold yet, uses the target anchor of its "Rules to update" entry. Without rules docs, scenarios have no prefix: `- WHEN a guest submits an empty cart, THEN checkout returns 422 with the message "cart is empty"`.
+   - **Concrete.** Real values in, an observable outcome out: a return value, a response, a stored record, an emitted event, what the user sees. "Works correctly", "handles errors" and "is validated" are not outcomes.
+   - **No new behavior.** A scenario restates behavior that the briefing, the rules docs or `## Clarifications` already define. It never decides anything new. When a scenario needs a fact none of them gives, that's a clarifying question for step 4, and with `rules_docs` configured its answer follows the `[rule]` flow.
+   - **Pending.** When a scenario depends on an item the rules docs mark as open or pending, end it with `(pending: <the item, as the rules doc names it>)` and leave the item unresolved. `sp:implement` writes no test for a pending scenario.
+   - **Stable text.** Scenario text becomes test names that outlive the plan, so it never mentions task numbers or anything else local to the plan file.
+
+8. **Writing style**: the plan file is a decision document, not a transcript of the conversation. Write in the affirmative, final point of view — the chosen approach is simply the approach, not "instead of X we chose Y." No meta-commentary about the back-and-forth that produced it, no residue from discarded alternatives unless a risk section needs to name a real tradeoff still in play. (The `## Clarifications` section in `product-briefing.md` is the one place the raw Q&A belongs — leave it as a record, not prose to rewrite.)
+
+9. When the plan file is written, tell the user where it is and stop — don't start implementing. That's a separate, explicit step (`sp:implement`).

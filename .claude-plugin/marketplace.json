@@ -9,7 +9,7 @@
     {
       "name": "sp",
       "source": "./",
-      "description": "Spec-plan change-request workflow: /sp:create, /sp:build, /sp:implement, /sp:archive."
+      "description": "Spec-plan change-request workflow: /sp:create, /sp:build, /sp:implement, /sp:verify, /sp:archive."
     }
   ]
 }

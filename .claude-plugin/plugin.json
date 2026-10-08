@@ -1,7 +1,7 @@
 {
   "name": "sp",
-  "version": "0.2.0",
-  "description": "Spec-plan: a change-request workflow — create a product briefing, turn it into a build plan, implement it, archive it.",
+  "version": "0.3.0",
+  "description": "Spec-plan: a change-request workflow — create a product briefing, turn it into a build plan with acceptance scenarios, implement it, verify it, archive it.",
   "author": {
     "name": "Danilo Prates",
     "email": "daniloprates@gmail.com"
