@@ -6,13 +6,30 @@
 #   ./install.sh --global --uninstall
 #   ./install.sh --local [dir] --uninstall
 #
-# The plugin loads in place from this repo, so edits to skills/ take effect at
-# the next session start or /reload-plugins. Re-running is safe.
+# Installing copies the plugin into Claude Code's plugin cache, replacing any
+# earlier install in that scope. Re-run it to pick up edits to skills/.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MARKETPLACE="spec-plan"
 PLUGIN="sp@${MARKETPLACE}"
+PLUGINS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
+CACHE_DIR="${PLUGINS_DIR}/cache/${MARKETPLACE}/sp"
+REGISTRY="${PLUGINS_DIR}/installed_plugins.json"
+
+# Delete cached copies of the plugin that no install, in any scope, still uses.
+prune_cache() {
+  local dir
+  for dir in "$CACHE_DIR"/*/; do
+    dir="${dir%/}"
+    [[ -d "$dir" ]] || continue
+    if [[ -f "$REGISTRY" ]] && grep -qF "\"$dir\"" "$REGISTRY"; then
+      continue
+    fi
+    echo "Removing old copy: $dir"
+    rm -rf "$dir"
+  done
+}
 
 usage() {
   sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -53,9 +70,14 @@ fi
 
 if [[ "$action" == "install" ]]; then
   claude plugin validate "$REPO_DIR" >/dev/null
+  if claude plugin uninstall "$PLUGIN" --scope "$scope" >/dev/null 2>&1; then
+    echo "Removed previous install of $PLUGIN."
+  fi
+  prune_cache
   claude plugin marketplace add "$REPO_DIR" --scope "$scope"
   claude plugin install "$PLUGIN" --scope "$scope"
 else
   claude plugin uninstall "$PLUGIN" --scope "$scope"
   claude plugin marketplace remove "$MARKETPLACE" --scope "$scope"
+  prune_cache
 fi
